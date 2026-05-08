@@ -51,6 +51,68 @@ Introduction into the practical side of cloud native development:
 
 ![service communication](images/service-communication.png)
 
+
+## Containerisation
+
+Introduction into packaging applications as containers:
+
+- Problem with running applications directly on a host
+  - different machines may have different Java versions, tools or system libraries
+  - manual setup is hard to reproduce
+  - deployments become dependent on the local environment
+  - scaling and replacing instances becomes harder
+- Container image
+  - packaged application plus runtime dependencies
+  - built once and started many times
+  - usually created from a `Dockerfile` or build tool plugin
+  - consists of layers that can be cached and reused
+- Container
+  - running instance of an image
+  - isolated process with its own filesystem, network view and environment
+  - can be started, stopped, removed and recreated
+- Dockerfile
+  - describes how to build an image
+  - chooses a base image
+  - copies the application artifact
+  - defines the command used to start the application
+- Ports and networking
+  - Spring Boot usually listens on port `8080` inside the container
+  - host-to-container port mapping makes the application reachable from outside
+  - containers can communicate through container networks
+- Configuration
+  - environment variables are commonly used for runtime settings
+  - datasource URLs, active profiles and secrets should not be hardcoded into the image
+  - same image can be used in different environments with different configuration
+- Container registry
+  - storage location for container images
+  - examples are Docker Hub, GitHub Container Registry or a private registry
+  - deployment platforms pull images from registries
+- Cloud native perspective
+  - containers support reproducible deployment
+  - application instances should be stateless where possible
+  - persistent state belongs in external databases or managed storage
+  - containers are the basis for orchestration platforms like Kubernetes
+
+Basic example workflow:
+
+```bash
+docker build -t starterapp .
+docker run --rm -p 8080:8080 starterapp
+```
+
+### Questions for Exam Preparation
+
+- What problem does containerisation solve compared to installing an application directly on a server?
+- What is the difference between a container image and a running container?
+- What is the purpose of a `Dockerfile`?
+- Why should a container image not contain environment-specific secrets or database URLs?
+- What does port mapping do when running a web application in a container?
+- Why are containers often described as disposable?
+- What happens to data stored only inside a container when the container is removed?
+- Why should persistent state usually be stored outside the application container?
+- What is a container registry, and why is it useful in deployment pipelines?
+- How does containerisation support cloud native principles such as scalability and reproducibility?
+
 ## Persistence - 08.05.26
 
 Introduction into moving the TODO application from local memory towards persistence:
