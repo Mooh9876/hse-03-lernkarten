@@ -26,11 +26,11 @@ class StarterappApplicationTests {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private TodoRepository todoRepository;
+	private FlashcardRepository flashcardRepository;
 
 	@BeforeEach
-	void clearTodos() {
-		todoRepository.deleteAll();
+	void clearFlashcards() {
+		flashcardRepository.deleteAll();
 	}
 
 	@Test
@@ -38,69 +38,72 @@ class StarterappApplicationTests {
 	}
 
 	@Test
-	void todosEndpointReturnsJson() throws Exception {
-		mockMvc.perform(get("/todos"))
+	void flashcardsEndpointReturnsJson() throws Exception {
+		mockMvc.perform(get("/flashcards"))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
 	}
 
 	@Test
-	void createTodoReturnsCreatedResource() throws Exception {
-		mockMvc.perform(post("/todos")
+	void createFlashcardReturnsCreatedResource() throws Exception {
+		mockMvc.perform(post("/flashcards")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
 									"id": 123,
-									"title": "Write tests",
-									"description": "Cover REST behavior",
-									"completed": false
+									"question": "What is CAP theorem?",
+									"answer": "Consistency, Availability, Partition tolerance",
+									"category": "Distributed Systems",
+									"learned": false
 								}
 								"""))
 				.andExpect(status().isCreated())
-				.andExpect(header().string("Location", containsString("/todos/")))
+				.andExpect(header().string("Location", containsString("/flashcards/")))
 				.andExpect(jsonPath("$.id").exists())
-				.andExpect(jsonPath("$.title").value("Write tests"));
+				.andExpect(jsonPath("$.question").value("What is CAP theorem?"));
 	}
 
 	@Test
-	void updateTodoUsesPathIdAndReturnsNotFoundForMissingTodo() throws Exception {
-		TodoItem todo = todoRepository.save(new TodoItem(null, "Old title", "Old description", false));
+	void updateFlashcardUsesPathIdAndReturnsNotFoundForMissingFlashcard() throws Exception {
+		Flashcard flashcard = flashcardRepository.save(new Flashcard(null, "Old question", "Old answer", "General", false));
 
-		mockMvc.perform(put("/todos/{id}", todo.getId())
+		mockMvc.perform(put("/flashcards/{id}", flashcard.getId())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
 									"id": 999,
-									"title": "New title",
-									"description": "New description",
-									"completed": true
+									"question": "New question",
+									"answer": "New answer",
+									"category": "Cloud",
+									"learned": true
 								}
 								"""))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(todo.getId()))
-				.andExpect(jsonPath("$.title").value("New title"))
-				.andExpect(jsonPath("$.completed").value(true));
+				.andExpect(jsonPath("$.id").value(flashcard.getId()))
+				.andExpect(jsonPath("$.question").value("New question"))
+				.andExpect(jsonPath("$.learned").value(true));
 
-		mockMvc.perform(put("/todos/{id}", 999)
+		mockMvc.perform(put("/flashcards/{id}", 999)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
-									"title": "Missing",
-									"description": "Does not exist",
-									"completed": false
+									"question": "Missing",
+									"answer": "Does not exist",
+									"category": "General",
+									"learned": false
 								}
 								"""))
 				.andExpect(status().isNotFound());
 	}
 
 	@Test
-	void deleteTodoReturnsNoContentOrNotFound() throws Exception {
-		TodoItem todo = todoRepository.save(new TodoItem(null, "Delete me", "Delete description", false));
+	void deleteFlashcardReturnsNoContentOrNotFound() throws Exception {
+		Flashcard flashcard = flashcardRepository.save(new Flashcard(null, "Delete me", "Delete answer", "General", false));
 
-		mockMvc.perform(delete("/todos/{id}", todo.getId()))
+		mockMvc.perform(delete("/flashcards/{id}", flashcard.getId()))
 				.andExpect(status().isNoContent());
 
-		mockMvc.perform(delete("/todos/{id}", todo.getId()))
+		mockMvc.perform(delete("/flashcards/{id}", flashcard.getId()))
 				.andExpect(status().isNotFound());
 	}
 }
