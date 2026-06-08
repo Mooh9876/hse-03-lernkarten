@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/todos': 'http://localhost:8080',
+      '/flashcards': 'http://localhost:8080',
     },
   },
 })

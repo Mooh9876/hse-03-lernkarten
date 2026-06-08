@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-const API = '/todos'
+const API = '/flashcards'
 
 export default function App() {
   const [cards, setCards] = useState([])
   const [flipped, setFlipped] = useState({})
-  const [learned, setLearned] = useState({})
   const [showForm, setShowForm] = useState(false)
   const [editCard, setEditCard] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '' })
+  const [form, setForm] = useState({ question: '', answer: '', category: '' })
   const [filter, setFilter] = useState('all') // all | learned | open
 
   useEffect(() => { fetchCards() }, [])
@@ -18,32 +17,29 @@ export default function App() {
     const res = await fetch(API)
     const data = await res.json()
     setCards(data)
-    const l = {}
-    data.forEach(c => { if (c.completed) l[c.id] = true })
-    setLearned(l)
   }
 
   async function createCard() {
-    if (!form.title.trim()) return
+    if (!form.question.trim()) return
     await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: form.title, description: form.description, completed: false }),
+      body: JSON.stringify({ question: form.question, answer: form.answer, category: form.category, learned: false }),
     })
-    setForm({ title: '', description: '' })
+    setForm({ question: '', answer: '', category: '' })
     setShowForm(false)
     fetchCards()
   }
 
   async function updateCard() {
-    if (!form.title.trim()) return
+    if (!form.question.trim()) return
     await fetch(`${API}/${editCard.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editCard, title: form.title, description: form.description }),
+      body: JSON.stringify({ ...editCard, question: form.question, answer: form.answer, category: form.category }),
     })
     setEditCard(null)
-    setForm({ title: '', description: '' })
+    setForm({ question: '', answer: '', category: '' })
     fetchCards()
   }
 
@@ -53,35 +49,34 @@ export default function App() {
   }
 
   async function toggleLearned(card) {
-    const updated = { ...card, completed: !card.completed }
+    const updated = { ...card, learned: !card.learned }
     await fetch(`${API}/${card.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated),
     })
-    setLearned(prev => ({ ...prev, [card.id]: !prev[card.id] }))
     fetchCards()
   }
 
   function startEdit(card) {
     setEditCard(card)
-    setForm({ title: card.title, description: card.description })
+    setForm({ question: card.question, answer: card.answer, category: card.category || '' })
     setShowForm(true)
   }
 
   function cancelForm() {
     setShowForm(false)
     setEditCard(null)
-    setForm({ title: '', description: '' })
+    setForm({ question: '', answer: '', category: '' })
   }
 
   const filtered = cards.filter(c => {
-    if (filter === 'learned') return c.completed
-    if (filter === 'open') return !c.completed
+    if (filter === 'learned') return c.learned
+    if (filter === 'open') return !c.learned
     return true
   })
 
-  const learnedCount = cards.filter(c => c.completed).length
+  const learnedCount = cards.filter(c => c.learned).length
 
   return (
     <div className="app">
@@ -111,16 +106,22 @@ export default function App() {
             <input
               autoFocus
               placeholder="z.B. Was ist ein verteiltes System?"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              value={form.question}
+              onChange={e => setForm(f => ({ ...f, question: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && (editCard ? updateCard() : createCard())}
             />
             <label>Antwort / Erklärung</label>
             <textarea
               rows={4}
               placeholder="z.B. Ein System aus mehreren unabhängigen Prozessen..."
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              value={form.answer}
+              onChange={e => setForm(f => ({ ...f, answer: e.target.value }))}
+            />
+            <label>Kategorie (optional)</label>
+            <input
+              placeholder="z.B. Distributed Systems"
+              value={form.category}
+              onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
             />
             <div className="modal-actions">
               <button className="btn-ghost" onClick={cancelForm}>Abbrechen</button>
@@ -155,28 +156,29 @@ export default function App() {
           {filtered.map(card => (
             <div
               key={card.id}
-              className={`card ${flipped[card.id] ? 'flipped' : ''} ${card.completed ? 'done' : ''}`}
+              className={`card ${flipped[card.id] ? 'flipped' : ''} ${card.learned ? 'done' : ''}`}
               onClick={() => setFlipped(f => ({ ...f, [card.id]: !f[card.id] }))}
             >
               <div className="card-inner">
                 <div className="card-front">
-                  {card.completed && <span className="badge">✓ Gelernt</span>}
+                  {card.learned && <span className="badge">✓ Gelernt</span>}
                   <div className="card-number">#{card.id}</div>
-                  <p className="card-question">{card.title}</p>
+                  <p className="card-question">{card.question}</p>
+                  {card.category && <span className="card-category">{card.category}</span>}
                   <span className="flip-hint">Klicken zum Umdrehen →</span>
                 </div>
                 <div className="card-back">
-                  <p className="card-answer">{card.description || '(keine Antwort)'}</p>
+                  <p className="card-answer">{card.answer || '(keine Antwort)'}</p>
                   <span className="flip-hint">← Zurückdrehen</span>
                 </div>
               </div>
               <div className="card-actions" onClick={e => e.stopPropagation()}>
                 <button
-                  className={`btn-learn ${card.completed ? 'unlearn' : ''}`}
+                  className={`btn-learn ${card.learned ? 'unlearn' : ''}`}
                   onClick={() => toggleLearned(card)}
-                  title={card.completed ? 'Als nicht gelernt markieren' : 'Als gelernt markieren'}
+                  title={card.learned ? 'Als nicht gelernt markieren' : 'Als gelernt markieren'}
                 >
-                  {card.completed ? '↩ Wiederholen' : '✓ Gelernt'}
+                  {card.learned ? '↩ Wiederholen' : '✓ Gelernt'}
                 </button>
                 <button className="btn-icon" onClick={() => startEdit(card)} title="Bearbeiten">✏️</button>
                 <button className="btn-icon danger" onClick={() => deleteCard(card.id)} title="Löschen">🗑️</button>

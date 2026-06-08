@@ -9,8 +9,13 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  app:
+  backend:
     build: ./starterapp
     ports:
       - "8080:8080"
@@ -19,7 +24,17 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: mysecretpassword
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: on-failure
 
 volumes:
   postgres_data:
