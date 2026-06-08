@@ -104,6 +104,7 @@ body {
   perspective: 1000px;
   cursor: pointer;
   position: relative;
+  padding-bottom: 52px;
 }
 .card-inner {
   width: 100%;
@@ -189,7 +190,7 @@ body {
 /* ── Card Actions ── */
 .card-actions {
   position: absolute;
-  bottom: -40px;
+  bottom: 8px;
   left: 0; right: 0;
   display: flex;
   gap: 8px;
@@ -274,4 +275,4 @@ body {
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
 
 /* ── Grid spacing for actions ── */
-.grid { padding-bottom: 50px; }
+.grid { padding-bottom: 20px; gap: 28px; }
