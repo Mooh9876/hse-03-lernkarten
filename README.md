@@ -1,7 +1,374 @@
-# hse-26-summer
+# Lernkarten-App – Flashcard Application
 
-Distributed Systems lecture collected material, summaries and questions.
-Also this repository will hold example code.
+**Labor „Verteilte Systeme" – Hochschule für Technik und Wirtschaft Berlin (HTW) – Sommersemester 2026**
+
+---
+
+## Projektbeschreibung
+
+Webbasierte Lernkarten-Anwendung zur Prüfungsvorbereitung. Das Projekt demonstriert eine vollständige, in Containern betriebene Mehrschicht-Architektur (Frontend, Backend, Datenbank) und zeigt Konzepte aus dem Bereich Verteilte Systeme: Containerisierung, Orchestrierung mit Kubernetes, persistente Datenhaltung, Skalierung und Selbstheilung.
+
+---
+
+## Funktionsumfang
+
+| Funktion | Beschreibung |
+|---|---|
+| Karte erstellen | Neue Lernkarte mit Frage, Antwort und optionaler Kategorie anlegen |
+| Karte anzeigen | Alle Karten in einer Rasteransicht; Karte umdrehen per Klick |
+| Karte bearbeiten | Frage, Antwort und Kategorie nachträglich ändern |
+| Karte löschen | Einzelne Karte dauerhaft entfernen |
+| Lernstatus | Karte als „Gelernt" oder „Wiederholen" markieren |
+| Filter | Anzeige nach: Alle / Offen / Gelernt |
+| Fortschrittsanzeige | Zeigt `gelernt / gesamt` in der Kopfzeile |
+
+---
+
+## Technologieübersicht
+
+| Komponente | Technologie |
+|---|---|
+| Frontend | React 19, Vite 8, nginx (Reverse Proxy) |
+| Backend | Spring Boot 4, Spring Data JPA, Spring Actuator |
+| Datenbank | PostgreSQL 16 |
+| Containerisierung | Docker, Docker Compose |
+| Orchestrierung | Kubernetes (Deployments, Services, PVC, Secrets) |
+| CI | GitHub Actions (Test → Build → Push zu GHCR) |
+
+---
+
+## Architekturübersicht
+
+```
+Browser
+  │  HTTP
+  ▼
+┌─────────────────────┐
+│  nginx (Frontend)   │  Port 80 / NodePort 30000
+│  React SPA          │
+│  Reverse Proxy      │
+└────────┬────────────┘
+         │ /flashcards → :8080
+         ▼
+┌─────────────────────┐
+│  Spring Boot        │  Port 8080 × 2 Replikas
+│  REST API           │  /flashcards (CRUD)
+│  JPA / Hibernate    │  /actuator/health
+└────────┬────────────┘
+         │ JDBC :5432
+         ▼
+┌─────────────────────┐
+│  PostgreSQL 16      │  Port 5432
+│  Persistente Daten  │◄── PersistentVolumeClaim
+└─────────────────────┘
+```
+
+Detaillierte Architekturdokumentation: [docs/architecture.md](docs/architecture.md)
+
+---
+
+## Voraussetzungen
+
+- Docker Desktop ≥ 24 oder Docker Engine + Docker Compose v2
+- Kubernetes-Cluster (z. B. Minikube, kind, Docker Desktop k8s, oder ein externer Cluster)
+- `kubectl` konfiguriert und auf den Cluster zeigend
+- Java 17+ (nur für lokale Entwicklung ohne Docker)
+- Maven 3.9+ (nur für lokale Entwicklung ohne Docker)
+
+---
+
+## Lokaler Start mit Docker Compose
+
+```bash
+# Repository klonen
+git clone https://github.com/Mooh9876/hse-03-lernkarten.git
+cd hse-03-lernkarten
+
+# Alle Dienste starten (baut Images lokal)
+docker compose up -d
+
+# Logs verfolgen (optional)
+docker compose logs -f
+
+# Stoppen und aufräumen
+docker compose down
+```
+
+Nach dem Start erreichbar unter:
+
+| Dienst | URL |
+|---|---|
+| Frontend (Web-App) | http://localhost:5173 |
+| Backend REST-API | http://localhost:8080/flashcards |
+| Actuator Health | http://localhost:8080/actuator/health |
+| PostgreSQL | localhost:5432 (Nutzer: postgres, DB: postgres) |
+
+---
+
+## Tests ausführen
+
+### Backend-Tests (Spring Boot / JUnit 5)
+
+Die Tests verwenden eine H2-In-Memory-Datenbank und benötigen keine laufende PostgreSQL-Instanz.
+
+```bash
+cd starterapp
+
+# Mit Maven (systemweit installiert)
+mvn test
+
+# Mit Maven Wrapper (falls Maven nicht installiert)
+./mvnw test
+```
+
+Erwartetes Ergebnis: `Tests run: 5, Failures: 0, Errors: 0`
+
+Getestete Szenarien:
+- `contextLoads` – Spring-Kontext startet korrekt
+- `flashcardsEndpointReturnsJson` – GET /flashcards liefert JSON
+- `createFlashcardReturnsCreatedResource` – POST /flashcards erstellt Ressource
+- `updateFlashcardUsesPathIdAndReturnsNotFoundForMissingFlashcard` – PUT mit falscher ID → 404
+- `deleteFlashcardReturnsNoContentOrNotFound` – DELETE → 204, zweiter Versuch → 404
+
+---
+
+## API-Übersicht
+
+Basis-URL: `http://localhost:8080` (lokal) oder über nginx auf Port 5173 / 30000
+
+| Methode | Pfad | Beschreibung | Request-Body |
+|---|---|---|---|
+| `GET` | `/flashcards` | Alle Karten abrufen | – |
+| `GET` | `/flashcards/{id}` | Eine Karte per ID | – |
+| `POST` | `/flashcards` | Neue Karte erstellen | JSON (s. u.) |
+| `PUT` | `/flashcards/{id}` | Karte aktualisieren | JSON (s. u.) |
+| `DELETE` | `/flashcards/{id}` | Karte löschen | – |
+| `GET` | `/actuator/health` | Health-Status | – |
+| `GET` | `/actuator/health/readiness` | Readiness-Status | – |
+| `GET` | `/actuator/health/liveness` | Liveness-Status | – |
+
+**Flashcard JSON-Struktur:**
+```json
+{
+  "question": "Was ist der CAP-Satz?",
+  "answer": "Consistency, Availability, Partition Tolerance – maximal zwei der drei sind gleichzeitig erreichbar.",
+  "category": "Verteilte Systeme",
+  "learned": false
+}
+```
+
+**Beispiel-Anfragen mit curl:**
+```bash
+# Alle Karten abrufen
+curl http://localhost:8080/flashcards
+
+# Karte erstellen
+curl -X POST http://localhost:8080/flashcards \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Was ist Docker?","answer":"Containerisierungsplattform","category":"DevOps","learned":false}'
+
+# Karte als gelernt markieren (ID anpassen)
+curl -X PUT http://localhost:8080/flashcards/1 \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Was ist Docker?","answer":"Containerisierungsplattform","category":"DevOps","learned":true}'
+
+# Karte löschen
+curl -X DELETE http://localhost:8080/flashcards/1
+```
+
+---
+
+## Kubernetes-Deployment
+
+### Schritt 1 – Container-Images bauen und in Registry pushen
+
+Die Kubernetes-Manifeste referenzieren Images in der **GitHub Container Registry (GHCR)**. Bevor du deployst, musst du die Images bauen und pushen.
+
+```bash
+# Bei GHCR anmelden (einmalig)
+echo $GITHUB_TOKEN | docker login ghcr.io -u mooh9876 --password-stdin
+
+# Backend-Image bauen und pushen
+docker build -t ghcr.io/mooh9876/flashcard-backend:latest ./starterapp
+docker push ghcr.io/mooh9876/flashcard-backend:latest
+
+# Frontend-Image bauen und pushen
+docker build -t ghcr.io/mooh9876/flashcard-frontend:latest ./frontend
+docker push ghcr.io/mooh9876/flashcard-frontend:latest
+```
+
+> **Hinweis:** Die GHCR-Packages müssen auf „Public" gesetzt sein, damit Kubernetes sie ohne imagePullSecret ziehen kann.
+> Einstellung unter: GitHub → Profile → Packages → Package-Einstellungen → Change visibility → Public
+
+Alternativ kann nach dem ersten CI-Run (push auf `main`) der GitHub Actions Workflow die Images automatisch pushen.
+
+### Schritt 2 – Kubernetes-Manifeste anwenden
+
+```bash
+# Namespace anlegen (zuerst!)
+kubectl apply -f k8s/namespace.yaml
+
+# Secret mit Datenbankzugangsdaten anlegen
+kubectl apply -f k8s/secret.yaml
+
+# PostgreSQL mit PersistentVolumeClaim deployen
+kubectl apply -f k8s/postgres.yaml
+
+# Backend deployen (2 Replikas)
+kubectl apply -f k8s/backend.yaml
+
+# Frontend deployen
+kubectl apply -f k8s/frontend.yaml
+
+# Optional: Ingress anlegen (erfordert nginx Ingress Controller)
+# kubectl apply -f k8s/ingress.yaml
+```
+
+Oder alle auf einmal:
+```bash
+kubectl apply -f k8s/namespace.yaml -f k8s/secret.yaml -f k8s/postgres.yaml -f k8s/backend.yaml -f k8s/frontend.yaml
+```
+
+### Schritt 3 – Status prüfen
+
+```bash
+# Alle Ressourcen im Namespace anzeigen
+kubectl get all -n flashcards
+
+# Pods beobachten bis alle Ready sind (Strg+C zum Beenden)
+kubectl get pods -n flashcards -w
+
+# Backend-Logs anzeigen
+kubectl logs -l app=backend -n flashcards
+
+# Pod-Details anzeigen (inkl. Probe-Status)
+kubectl describe pod -l app=backend -n flashcards
+```
+
+### Schritt 4 – Anwendung aufrufen
+
+**Mit NodePort (Standard):**
+```bash
+# Minikube
+minikube service frontend -n flashcards
+
+# Oder direkt über Node-IP
+kubectl get nodes -o wide   # Node-IP ermitteln
+# Anwendung unter http://<Node-IP>:30000 erreichbar
+```
+
+**Mit kubectl port-forward (für lokalen Zugriff auf jeden Cluster):**
+```bash
+kubectl port-forward svc/frontend 8080:80 -n flashcards
+# Anwendung unter http://localhost:8080 erreichbar
+```
+
+### Aufräumen
+
+```bash
+kubectl delete namespace flashcards
+```
+
+---
+
+## Secrets und Konfiguration
+
+Datenbankzugangsdaten werden als **Kubernetes Secret** gespeichert (`k8s/secret.yaml`).
+
+Die Werte sind base64-kodiert (kein Klartext in YAML-Dateien):
+
+```bash
+# Eigene Werte kodieren
+echo -n "meinpasswort" | base64
+```
+
+Das Secret enthält:
+- `POSTGRES_DB` – Datenbankname
+- `POSTGRES_USER` – Datenbankbenutzer
+- `POSTGRES_PASSWORD` – Datenbankpasswort
+
+Backend und PostgreSQL-Pod lesen diese Werte als Umgebungsvariablen. Spring Boot übersetzt `SPRING_DATASOURCE_PASSWORD` automatisch in die entsprechende Property.
+
+> Für Produktivumgebungen: Secrets in einer Secret-Management-Lösung (z. B. HashiCorp Vault, Kubernetes External Secrets) verwalten, nicht in Git einchecken.
+
+---
+
+## Persistente PostgreSQL-Datenhaltung
+
+Daten werden in einem **PersistentVolumeClaim** (`postgres-pvc`, 1 Gi) gespeichert:
+
+```yaml
+volumeMounts:
+  - mountPath: /var/lib/postgresql/data
+    name: postgres-storage
+    subPath: pgdata
+```
+
+- Der PVC überlebt Pod-Neustarts und Node-Wechsel
+- Auch nach `kubectl delete pod -l app=postgres -n flashcards` sind alle Flashcards nach dem Neustart noch vorhanden
+- Der PVC wird erst gelöscht, wenn der gesamte Namespace gelöscht wird
+
+---
+
+## Backend-Skalierung
+
+Das Backend läuft standardmäßig mit **2 Replikas**. Kubernetes verteilt Anfragen über den ClusterIP-Service automatisch:
+
+```bash
+# Auf 3 Replikas skalieren
+kubectl scale deployment backend --replicas=3 -n flashcards
+
+# Aktuelle Skalierung anzeigen
+kubectl get deployment backend -n flashcards
+```
+
+Beide Pods greifen auf dieselbe PostgreSQL-Instanz zu – die Anwendungsschicht ist zustandslos und beliebig horizontal skalierbar.
+
+---
+
+## Kubernetes Self-Healing demonstrieren
+
+Kubernetes stellt automatisch sicher, dass die gewünschte Anzahl Pods (`replicas: 2`) immer läuft.
+
+```bash
+# Aktuellen Zustand zeigen
+kubectl get pods -n flashcards -l app=backend
+
+# Einen Backend-Pod löschen
+kubectl delete pod $(kubectl get pod -n flashcards -l app=backend -o name | head -1) -n flashcards
+
+# Sofort beobachten: Kubernetes startet neuen Pod
+kubectl get pods -n flashcards -w
+```
+
+**Erwartetes Verhalten:**
+1. Pod-Status wechselt auf `Terminating`
+2. Neuer Pod erscheint sofort mit Status `Pending` → `ContainerCreating` → `Running`
+3. Startup Probe → Readiness Probe erfolgreich → Pod nimmt Traffic an
+4. Während des Neustarts läuft der zweite Pod weiter → kein Totalausfall
+
+---
+
+## Continuous Integration (GitHub Actions)
+
+Der Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) läuft automatisch bei jedem Push auf `main` und bei Pull Requests:
+
+| Job | Beschreibung |
+|---|---|
+| `test-backend` | Maven-Tests mit Java 17, H2 In-Memory |
+| `build-frontend` | `npm ci` + `npm run build` |
+| `build-and-push-images` | Docker-Images bauen und zu GHCR pushen (nur bei Push auf `main`) |
+
+Images werden automatisch nach `ghcr.io/mooh9876/flashcard-backend:latest` und `ghcr.io/mooh9876/flashcard-frontend:latest` gepusht – keine manuellen Credentials nötig (verwendet `GITHUB_TOKEN`).
+
+---
+
+## Bekannte Einschränkungen und Hinweise vor der Abnahme
+
+- GHCR-Packages müssen manuell auf „Public" gesetzt werden (oder imagePullSecret konfigurieren)
+- `spring.jpa.show-sql=true` ist aktiviert (für Debugging); in Produktivumgebungen deaktivieren
+- PostgreSQL läuft mit einer Replica – für echte HA wäre ein PostgreSQL-Operator nötig
+- Das Secret `k8s/secret.yaml` liegt im Repository – für Produktion in ein Secret-Management-System auslagern
 
 ## Distributed Systems - 19.03.26
 
