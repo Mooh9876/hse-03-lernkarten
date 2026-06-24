@@ -68,11 +68,11 @@ jobs:
         with:
           context: ./starterapp
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/flashcard-backend:latest
+          tags: ghcr.io/mooh9876/flashcard-backend:latest
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/flashcard-frontend:latest
+          tags: ghcr.io/mooh9876/flashcard-frontend:latest
